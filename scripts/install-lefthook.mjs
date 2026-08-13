@@ -13,6 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import os from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import lefthookPackage from 'lefthook/package.json' with { type: 'json' }
 
@@ -51,6 +52,18 @@ function commandFailure(command, args, result) {
   const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : ''
   const detail = result.error?.message ?? (stderr || `exit status ${String(result.status)}`)
   return new Error(`${command} ${args.join(' ')} failed: ${detail}`)
+}
+
+/**
+ * lefthook 2.x ships binaries built for macOS 12+. Older macOS (Darwin
+ * kernels below 21) cannot execute them, so hook installation is skipped
+ * there instead of failing the whole install.
+ * @returns whether the host macOS predates 12.0.
+ */
+function isMacosOlderThan12() {
+  if (process.platform !== 'darwin') return false
+  const [major] = os.release().split('.').map(Number)
+  return major < 21
 }
 
 function capture(command, args, options = {}) {
@@ -697,6 +710,10 @@ async function main() {
   const isWindows = process.platform === 'win32'
   const lefthook = join(root, 'node_modules', '.bin', isWindows ? 'lefthook.cmd' : 'lefthook')
   if (!existsSync(lefthook)) return
+  if (isMacosOlderThan12()) {
+    console.warn('[install-lefthook] lefthook requires macOS 12+; skipping git hook installation on this macOS version.')
+    return
+  }
 
   assertSupportedGit(root)
   const gitDirectory = stripGitLineTerminator(git(['rev-parse', '--absolute-git-dir'], root).stdout)

@@ -27,6 +27,9 @@ linkWorkspacePackages: true
 overrides:
   '@deepseek-ai/cosmokit': 'link:vendor/cosmokit'
   '@deepseek-ai/schemastery': 'link:vendor/schemastery'
+  # tsx 4.22 requires esbuild ~0.28 whose darwin-x64 binary needs macOS 12+;
+  # 0.25.12 still runs on macOS 10.15 (Catalina) with a compatible transform API.
+  'tsx>esbuild': '0.25.12'
 
 peerDependencyRules:
   allowedVersions:
@@ -35,11 +38,15 @@ peerDependencyRules:
 # pnpm 10+ blocks any dependency shipping an install/build script until it is
 # explicitly reviewed here (strictDepBuilds defaults to true: an unlisted script
 # is a hard install error). Every such package MUST be listed; we deny by
-# default and only allow scripts we need. esbuild (native binary) and lefthook
-# (git hooks) genuinely need theirs.
+# default and only allow scripts we need. esbuild's postinstall only validates
+# its prebuilt binary and lefthook is a git-hooks helper; both are denied below
+# so their macOS 12+ binaries never block installs on macOS 10.15.
 allowBuilds:
-  esbuild: true
-  lefthook: true
+  # Denied for Catalina support: esbuild's postinstall only validates the
+  # prebuilt binary (installed via optional platform packages), and lefthook's
+  # binary itself needs macOS 12+. Skipping both scripts is safe on any OS.
+  esbuild: false
+  lefthook: false
   # Cross-platform boundary for the persistent PTY backend, including ConPTY on Windows.
   node-pty: true
   # Pulled in by @earendil-works/pi-ai (optional LLM API backend). pnpm lists
